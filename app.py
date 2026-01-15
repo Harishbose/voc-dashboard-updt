@@ -20,7 +20,7 @@ def load_data():
 @app.route('/')
 def index():
     """Serve the main dashboard"""
-    return render_template('Original Code.html')
+    return render_template('index.html')
 
 @app.route('/api/data')
 def get_data():
