@@ -29,7 +29,12 @@ def load_data():
 @app.route('/')
 def index():
     """Serve the main dashboard"""
-    return render_template('index.html')
+    # Serve Original Code.html directly without Jinja2 processing
+    try:
+        with open('Original Code.html', 'r', encoding='utf-8') as f:
+            return f.read()
+    except:
+        return render_template('index.html')
 
 @app.route('/api/data')
 def get_data():
