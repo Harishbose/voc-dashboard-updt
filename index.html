@@ -1,0 +1,1255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Voice of Customer — Google Reviews Dashboard</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<!-- Removed html2canvas/jspdf per request (export PDF removed) -->
+
+<style>
+:root{
+  /* Default (Light) theme */
+  --bg:#e5e7eb;
+  --positive:#10b981;
+  --negative:#ef4444;
+  --neutral:#f59e0b;
+  --blue:#1e3a8a;
+  --card:#f8fafc;
+  --muted:#6b7280;
+  --glass: rgba(255,255,255,0.6);
+  --shadow: 0 6px 18px rgba(15,23,42,0.06);
+  font-family: Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial;
+}
+
+/* Dark / other themes left intact (not applied unless user chooses) */
+.theme-ocean { --bg:#e8f9ff; --positive:#16a085; --negative:#d64545; --neutral:#f39c12; --blue:#0b6fa4; --card:#ffffff; --muted:#3b4b58; }
+.theme-dark { --bg:#0b1220; --positive:#2ecc71; --negative:#e74c3c; --neutral:#f39e0b; --blue:#60a5fa; --card:#0f1724; --muted:#94a3b8;}
+.theme-warm { --bg:#fff5eb; --positive:#0ea5a1; --negative:#ef4444; --neutral:#f59e0b; --blue:#b45309; --card:#fffdf9; --muted:#6b4f3b; }
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:#0f172a;
+  font-size:14px;
+  line-height:1.3;
+  -webkit-font-smoothing:antialiased;
+  padding:12px;
+  font-family: Roboto, Arial, sans-serif;
+}
+
+/* Layout */
+.app { display:flex; gap:16px; align-items:stretch; height:calc(100vh - 24px); transition: margin-left 0.25s ease; }
+
+/* Drawer (left) - will push content when open */
+.filter-drawer {
+  width:320px;
+  background:linear-gradient(180deg,#ffffff,#fbfdff);
+  border-radius:12px;
+  padding:12px;
+  box-shadow:var(--shadow);
+  overflow:auto;
+  position:relative;
+  transform: translateX(0);
+  transition: transform 0.3s ease;
+}
+.filter-drawer.hidden { transform: translateX(-360px); }
+
+/* Main content area */
+.main { flex:1; display:flex; flex-direction:column; gap:12px; min-width:0; margin-left:0; transition: margin-left 0.3s ease; }
+
+/* Top bar */
+.topbar{ display:flex; gap:12px; align-items:center; justify-content:space-between; }
+.controls {display:flex; gap:8px; align-items:center;}
+.kpis {display:flex; gap:12px; align-items:center;}
+.kpi { background:var(--card); padding:12px 16px; border-radius:10px; box-shadow:0 2px 6px rgba(2,6,23,0.05); min-width:160px; text-align:center;}
+.kpi .label{color:var(--muted); font-size:12px}
+.kpi .value{font-weight:700; font-size:20px}
+
+/* Strategic insights grid */
+.insights { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+
+/* Insight card */
+.insight-card{ background:#fff; border-radius:10px; padding:12px; box-shadow:var(--shadow); min-height:72px; }
+.insight-card h4{margin:0 0 6px 0; color:#0b1220; font-size:14px}
+.insight-card p{margin:0; color:var(--muted); font-size:13px}
+
+/* Panels grid for charts - maintain original widths and avoid horizontal scroll */
+.grid { display:grid; grid-template-columns: 1fr 420px; gap:12px; align-items:start; }
+.row-2 {display:grid; grid-template-columns:1fr 380px; gap:12px; align-items:start;}
+.row-3 {display:grid; grid-template-columns:1fr 420px; gap:12px; align-items:start;}
+.row-4 {display:grid; grid-template-columns:1fr 420px; gap:12px; align-items:start;}
+
+/* Chart card */
+.card { background:#fff; border-radius:10px; padding:12px; box-shadow:var(--shadow); overflow:hidden; }
+.card h3 { margin:0 0 10px 0; color:var(--blue); font-size:15px; }
+
+/* Pill labels */
+.pills {display:flex; gap:8px; flex-wrap:wrap}
+.pill { padding:6px 10px; border-radius:999px; background:#f1f5f9; font-weight:500; font-size:12px; cursor:pointer }
+
+/* Word cloud */
+.word-cloud { min-height:180px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+
+/* Charts (SVG containers) */
+.svg-chart{width:100%; height:220px}
+
+/* Heatmap container: horizontal scroll */
+.heatmap-wrap{overflow:auto; border-radius:8px; padding:8px; background:linear-gradient(180deg,#ffffff,#fbfdff)}
+.heatmap-table{border-collapse:collapse; min-width:100%}
+.heatmap-table th, .heatmap-table td{padding:8px 10px; border:1px solid rgba(15,23,42,0.06); white-space:nowrap}
+.heatmap-table th{position:sticky; top:0; background:#fff; z-index:2}
+
+/* Comments panels row */
+.comments-row{display:flex; gap:12px}
+.comment-column{flex:1; background:#fff; border-radius:10px; padding:12px; box-shadow:var(--shadow); max-height:420px; overflow:auto}
+.comment-card{background:#f8fafc; border-radius:8px; padding:10px; margin-bottom:8px; border:1px solid rgba(2,6,23,0.04)}
+.comment-card b{display:block}
+.comment-meta{font-size:12px; color:var(--muted); margin-top:6px}
+
+/* Buttons */
+.btn {padding:8px 10px; background:#fff; border-radius:8px; border:1px solid rgba(2,6,23,0.06); cursor:pointer}
+.btn.primary{background:var(--blue); color:white; border:none}
+.small{font-size:13px; padding:6px 8px}
+
+/* Drawer toggle */
+.drawer-toggle { position:fixed; left:12px; top:12px; z-index:999; }
+
+/* Modal */
+.modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:9999}
+.modal{background:var(--card); border-radius:10px; padding:16px; width:760px; max-height:80vh; overflow:auto; box-shadow:var(--shadow)}
+
+/* Responsive */
+@media (max-width:1100px){
+  .grid, .row-2, .row-3, .row-4 {grid-template-columns:1fr}
+  .filter-drawer{display:none}
+  .app{padding:0}
+  .kpis{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="app" id="appRoot">
+  <!-- Filter drawer (left) -->
+  <aside class="filter-drawer" id="filterPanel" aria-label="Filters">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="margin:0;font-size:16px;color:var(--blue);font-weight:700">Filters</h2>
+      <div>
+        <button class="btn small" id="hideFilterBtn">Hide</button>
+      </div>
+    </div>
+
+    <div class="label-muted">Business Name (single-select)</div>
+    <div id="businessNameWrap"></div>
+
+    <hr style="margin:10px 0;border:none;border-top:1px solid rgba(2,6,23,0.06)">
+
+    <div class="label-muted">Zone</div>
+    <div id="zoneWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">State <input placeholder="Search state..." id="stateSearch" class="search-input" /></div>
+    <div id="stateWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">City <input placeholder="Search city..." id="citySearch" class="search-input" /></div>
+    <div id="cityWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">Store <input placeholder="Search store..." id="storeSearch" class="search-input" /></div>
+    <div id="storeWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">Mall Type</div>
+    <div id="mallWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">Sentiment</div>
+    <div id="sentimentWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">FY</div>
+    <div id="fyWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">Quarter</div>
+    <div id="quarterWrap"></div>
+
+    <div class="label-muted" style="margin-top:8px">Month</div>
+    <div id="monthWrap"></div>
+
+    <div style="margin-top:12px; display:flex; gap:8px; justify-content:space-between; align-items:center;">
+      <button class="btn primary" id="applyFilters">Apply</button>
+      <button class="btn" id="resetFilters">Reset filters</button>
+    </div>
+  </aside>
+
+  <main class="main" id="mainContent">
+    <div class="topbar">
+      <div class="controls" style="align-items:center;">
+        <button class="btn drawer-toggle" id="showFilterBtn" style="display:none">Show Filters</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div style="font-weight:700; font-size:20px; text-align:center; width:100%;">Voice of Customer — Google Reviews</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; align-items:center;">
+        <div class="kpis" id="kpisWrap">
+          <div class="kpi">
+            <div class="label">Total Reviews</div>
+            <div class="value" id="kpiTotal">0</div>
+          </div>
+          <div class="kpi">
+            <div class="label">% Negative Reviews</div>
+            <div style="display:flex; align-items:center; gap:8px; justify-content:center">
+              <div class="value" id="kpiNegative">0%</div>
+              <div id="trendIcon" style="font-size:16px;color:var(--negative)">▼</div>
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="label">Best Rated Store</div>
+            <div class="value" id="kpiBest">—</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Worst Rated Store</div>
+            <div class="value" id="kpiWorst">—</div>
+          </div>
+        </div>
+
+        <!-- New controls -->
+        <div style="display:flex; gap:8px; align-items:center; margin-left:12px">
+          <select id="themeSelect" class="btn small" title="Theme">
+            <option value="">Light</option>
+            <option value="theme-dark">Dark</option>
+            <option value="theme-ocean">Ocean</option>
+            <option value="theme-warm">Warm</option>
+          </select>
+
+          <button id="downloadCsvBtn" class="btn small">Download CSV</button>
+          <!-- Export PDF removed per request -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Strategic insights -->
+    <div class="insights" id="insightsGrid" style="margin-top:8px"></div>
+
+    <!-- Row 1 -->
+    <div class="grid">
+      <div class="card">
+        <h3 id="driversTitle">Key Drivers of Customer Feedback (All Sentiments)</h3>
+        <div class="pills" id="driverPills"></div>
+        <div id="driversChart" class="svg-chart" aria-hidden="true"></div>
+      </div>
+
+      <div class="card">
+        <h3>Sentiment Distribution</h3>
+        <div id="sentimentPie" style="display:flex;gap:12px;align-items:center">
+          <div id="pieChart" style="width:180px;height:180px"></div>
+          <div id="pieLegend" style="flex:1"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2 -->
+    <div class="row-2">
+      <div class="card">
+        <h3>Emotion Word Cloud</h3>
+        <div class="word-cloud" id="wordCloud"></div>
+      </div>
+
+      <div class="card">
+        <h3>Sentiment Trend Over Time (APR → MAR)</h3>
+        <div id="lineChart" class="svg-chart"></div>
+      </div>
+    </div>
+
+    <!-- Row 3 -->
+    <div class="row-3">
+      <div class="card">
+        <h3>Store Sentiment Heatmap (Top 10 stores × Categories)</h3>
+        <div class="heatmap-wrap" id="heatmapWrap" style="margin-top:8px">
+          <table class="heatmap-table" id="heatmapTable"></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Sentiment by Zone</h3>
+        <div id="zoneChart" class="svg-chart"></div>
+      </div>
+    </div>
+
+    <!-- Comments Row -->
+    <div class="comments-row" style="margin-top:8px">
+      <div class="comment-column">
+        <h3 style="color:var(--blue); margin-bottom:10px">Positive Comments (Top 15) – By Date</h3>
+        <div id="positiveComments"></div>
+      </div>
+
+      <div class="comment-column">
+        <h3 style="color:var(--blue); margin-bottom:10px">Negative Comments (Top 15) – By Date</h3>
+        <div id="negativeComments"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Drill-down modal -->
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal" id="drillModal">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 id="modalTitle">Store details</h3>
+      <button class="btn" id="closeModal">Close</button>
+    </div>
+    <div id="modalBody" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<script>
+/* =========================
+   Config & API detection
+   ========================= */
+
+const API_URLS = [
+  "https://raw.githubusercontent.com/Harishbose/voc-dashboard/main/reviews.json"
+];
+
+const MONTH_ORDER = ['APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR'];
+const SENTIMENT_COLORS = {
+  Positive: getComputedStyle(document.documentElement).getPropertyValue('--positive').trim() || '#10b981',
+  Negative: getComputedStyle(document.documentElement).getPropertyValue('--negative').trim() || '#ef4444',
+  Neutral: getComputedStyle(document.documentElement).getPropertyValue('--neutral').trim() || '#f59e0b'
+};
+
+let state = {
+  rawData: [],
+  data: [],
+  filters: {
+    businessName: null, // single-select
+    zones: new Set(),
+    states: new Set(),
+    cities: new Set(),
+    stores: new Set(),
+    mallTypes: new Set(),
+    sentiments: new Set(),
+    fys: new Set(),
+    quarters: new Set(),
+    months: new Set()
+  },
+  derived: {}
+};
+
+// Minimum reviews required to be considered for Best Store KPI
+const MIN_REVIEWS_FOR_BEST_STORE = 10;
+
+/* =========================
+   Helpers & small NLP (simple heuristics)
+   ========================= */
+
+function escapeHtml(s){ return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function sentimentScore(sent){ if(sent==='Positive') return 1; if(sent==='Negative') return -1; return 0; }
+function detectEmotions(text){
+  if(!text) return [];
+  const t = text.toLowerCase();
+  const em = [];
+  if(/thank|thanks|gratef|appreciat|love|😊/.test(t)) em.push('Gratitude');
+  if(/angry|hate|annoy|furious|😠|mad|rage|terrible|awful|worst/.test(t)) em.push('Frustration');
+  if(/happy|great|excellent|pleased|satisfied/.test(t)) em.push('Satisfaction');
+  if(/disappointed|sad|upset|not happy|disappoint/.test(t)) em.push('Disappointment');
+  if(/confused|unclear|unsure/.test(t)) em.push('Confusion');
+  if(em.length===0 && /good|nice|ok|average/.test(t)) em.push('Satisfaction');
+  return em;
+}
+function classifyImprovementCategory(text){
+  if(!text) return 'Miscellaneous';
+  const t = text.toLowerCase();
+  const matches = arr => arr.some(k => t.includes(k));
+  if(matches(['staff','service','salesman','experience','assistance','interaction'])) return 'Store Experience';
+  if(matches(['quality','material','product','durability','defect','faulty'])) return 'Product Quality';
+  if(matches(['collection','variety','size','available','stock','availability'])) return 'Inventory Management';
+  if(matches(['price','cost','expensive','discount','deal','value'])) return 'Pricing & Discounts';
+  if(matches(['return','exchange','refund','policy','returnable'])) return 'Return & Refund Policies';
+  if(matches(['support','help','assistance','responsive','query','resolution'])) return 'Customer Support';
+  if(matches(['promotion','offer','loyalty','deal','coupon','reward'])) return 'Promotions & Offers';
+  if(matches(['billing','payment','charge','invoice','transaction'])) return 'Billing & Payment Issues';
+  if(matches(['behaviour','rude','polite','attitude','courtesy','professionalism'])) return 'Staff Behaviour';
+  if(matches(['wait','queue','delay','slow','line','turnaround'])) return 'Wait Time / Queue Management';
+  return 'Miscellaneous';
+}
+function looksLikeDate(s){
+  if(!s) return false;
+  return /^\d{4}-\d{2}-\d{2}/.test(s) || /^\d{2}\/\d{2}\/\d{4}/.test(s) || /\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s);
+}
+function formatDateYMD(dateStr){
+  if(!dateStr) return 'N/A';
+  const d = new Date(dateStr);
+  if(isNaN(d)) return dateStr;
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const yy = String(d.getFullYear());
+  return mm + '/' + dd + '/' + yy;
+}
+
+/* =========================
+   Data loading: try production, then fallback
+   ========================= */
+
+async function loadReviewData(){
+  for(const url of API_URLS){
+    try {
+      console.log('Trying', url);
+      const res = await fetch(url);
+      if(!res.ok) { console.warn('fetch failed', url, res.status); continue; }
+      const data = await res.json();
+      if(Array.isArray(data) && data.length>0){ console.log('Loaded', data.length, 'rows from', url); return data; }
+    } catch(err){ console.warn('Error loading', url, err); }
+  }
+  alert('Could not load data from backend. Check GitHub raw JSON.');
+  return [];
+}
+
+/* =========================
+   Prepare & map data
+   ========================= */
+
+function normalizeRecord(r){
+  const rec = {};
+  rec.rating = (r.rating !== undefined && r.rating !== null && !isNaN(Number(r.rating))) ? Number(r.rating) : (r['Google Rating'] ? Number(r['Google Rating']) : 0);
+  rec.storeCode = r.storeCode || r['storeCode'] || r['Store Name'] || r['store'] || r['storeCode'] || r['Store Code'] || '';
+  rec.mallType = r.mallType || r['mallType'] || r['Mall/HS'] || r['mall'] || '';
+  rec.businessName = r.businessName || r['businessName'] || r['Brand'] || r['brand'] || r['Business Name'] || '';
+  rec.zone = r.zone || r['zone'] || r['Zone'] || '';
+  rec.state = r.state || r['state'] || r['State'] || '';
+  rec.city = r.city || r['city'] || r['City'] || '';
+  // comment date fallback logic
+  let rawDate = r.commentDate || r['commentDate'] || r['Comment Date'] || r['Comment Date_NEW'] || '';
+  if(!rawDate && r.comment) {
+    // if comment starts with ISO datetime, use it
+    if(looksLikeDate(r.comment)) rawDate = r.comment;
+  }
+  rec.commentDate = rawDate || '';
+  rec.month = (r.month || r['month'] || r['Month'] || '').toString().toUpperCase();
+  rec.quarter = r.quarter || r['quarter'] || r['Quarter'] || '';
+  rec.fy = r.fy || r['fy'] || r['Financial Year'] || r['FY'] || '';
+  rec.sentiment = (r.sentiment || r['sentiment'] || r['Sentiment'] || 'Neutral').toString();
+  let commentText = r.comment || r['comment'] || r['Customer Response'] || r.responseType || r['responseType'] || r['Customer Response'] || '';
+  // if the comment looks like a date, prefer responseType fields if present
+  if(looksLikeDate(String(commentText)) && (r.responseType && String(r.responseType).length > 3)) commentText = r.responseType;
+  if(looksLikeDate(String(commentText)) && (r['Customer Response'] && String(r['Customer Response']).length > 3)) commentText = r['Customer Response'];
+  rec.comment = (commentText || '').toString();
+  // attach raw fields to allow drill-down fallback (if needed)
+  rec.__raw = r;
+  return rec;
+}
+
+function refreshDerivedLists(all){
+  state.derived.businessNames = uniq(all.map(r=>r.businessName)).filter(x=>x).sort();
+  state.derived.zones = uniq(all.map(r=>r.zone)).filter(x=>x).sort();
+  state.derived.states = uniq(all.map(r=>r.state)).filter(x=>x).sort();
+  state.derived.cities = uniq(all.map(r=>r.city)).filter(x=>x).sort();
+  state.derived.stores = uniq(all.map(r=>r.storeCode)).filter(x=>x).sort();
+  state.derived.mallTypes = uniq(all.map(r=>r.mallType)).filter(x=>x).sort();
+  state.derived.fys = uniq(all.map(r=>r.fy)).filter(x=>x).sort().reverse();
+  state.derived.quarters = uniq(all.map(r=>r.quarter)).filter(x=>x).sort();
+  state.derived.months = uniq(all.map(r=>r.month)).filter(x=>x).sort((a,b)=> MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
+}
+
+function uniq(arr){ return Array.from(new Set(arr.map(x=>x===null? '': x))).filter(x=>x!=='' ); }
+
+/* =========================
+   Filters & cascade
+   ========================= */
+
+function cascadeAllowed(){
+  const base = state.rawData;
+  const f = state.filters;
+  const allowedStates = new Set();
+  const allowedCities = new Set();
+  const allowedStores = new Set();
+
+  base.forEach(r=>{
+    if(f.zones.size===0 || f.zones.has(r.zone)) allowedStates.add(r.state);
+  });
+  base.forEach(r=>{
+    if((f.zones.size===0 || f.zones.has(r.zone)) && (f.states.size===0 || f.states.has(r.state))) allowedCities.add(r.city);
+  });
+  base.forEach(r=>{
+    if((f.zones.size===0 || f.zones.has(r.zone)) && (f.states.size===0 || f.states.has(r.state)) && (f.cities.size===0 || f.cities.has(r.city))) allowedStores.add(r.storeCode);
+  });
+
+  state.derived.allowedStates = Array.from(allowedStates).sort();
+  state.derived.allowedCities = Array.from(allowedCities).sort();
+  state.derived.allowedStores = Array.from(allowedStores).sort();
+}
+
+function applyFilters(){
+  const f = state.filters;
+  let data = state.rawData.slice();
+
+  if(f.businessName) data = data.filter(r=> r.businessName === f.businessName);
+  if(f.zones.size) data = data.filter(r=> f.zones.has(r.zone));
+  if(f.states.size) data = data.filter(r=> f.states.has(r.state));
+  if(f.cities.size) data = data.filter(r=> f.cities.has(r.city));
+  if(f.stores.size) data = data.filter(r=> f.stores.has(r.storeCode));
+  if(f.mallTypes.size) data = data.filter(r=> f.mallTypes.has(r.mallType));
+  if(f.sentiments.size) data = data.filter(r=> f.sentiments.has(r.sentiment));
+  if(f.fys.size) data = data.filter(r=> f.fys.has(r.fy));
+  if(f.quarters.size) data = data.filter(r=> f.quarters.has(r.quarter));
+  if(f.months.size) data = data.filter(r=> f.months.has(r.month));
+
+  state.data = data;
+}
+
+/* =========================
+   Render controls & charts
+   ========================= */
+
+function renderFilterControls(){
+  cascadeAllowed();
+
+  // Business name (single-select radio)
+  const bwrap = document.getElementById('businessNameWrap'); bwrap.innerHTML='';
+  state.derived.businessNames.forEach(name=>{
+    const id = 'bn_'+name.replace(/\s+/g,'_');
+    const checked = (state.filters.businessName === name) ? 'checked' : '';
+    const div = document.createElement('div'); div.style.marginBottom='6px';
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="radio" name="businessName" ${checked} value="${escapeHtml(name)}"> <span>${escapeHtml(name)}</span></label>`;
+    bwrap.appendChild(div);
+  });
+
+  // zones
+  const zwrap = document.getElementById('zoneWrap'); zwrap.innerHTML='';
+  state.derived.zones.forEach(z=>{
+    const div = document.createElement('div');
+    const checked = state.filters.zones.has(z) ? 'checked' : '';
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(z)}" class="zone-checkbox" ${checked}/> ${escapeHtml(z)}</label>`;
+    zwrap.appendChild(div);
+  });
+
+  // states
+  const swrap = document.getElementById('stateWrap'); swrap.innerHTML='';
+  (state.derived.allowedStates || state.derived.states).forEach(s=>{
+    const checked = state.filters.states.has(s) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(s)}" class="state-checkbox" ${checked}/> ${escapeHtml(s)}</label>`;
+    swrap.appendChild(div);
+  });
+
+  // cities
+  const cwrap = document.getElementById('cityWrap'); cwrap.innerHTML='';
+  (state.derived.allowedCities || state.derived.cities).forEach(c=>{
+    const checked = state.filters.cities.has(c) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(c)}" class="city-checkbox" ${checked}/> ${escapeHtml(c)}</label>`;
+    cwrap.appendChild(div);
+  });
+
+  // stores
+  const stwrap = document.getElementById('storeWrap'); stwrap.innerHTML='';
+  (state.derived.allowedStores || state.derived.stores).forEach(s=>{
+    const checked = state.filters.stores.has(s) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(s)}" class="store-checkbox" ${checked}/> ${escapeHtml(s)}</label>`;
+    stwrap.appendChild(div);
+  });
+
+  // mall types
+  const mwrap = document.getElementById('mallWrap'); mwrap.innerHTML='';
+  state.derived.mallTypes.forEach(m=>{
+    const checked = state.filters.mallTypes.has(m) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(m)}" class="mall-checkbox" ${checked}/> ${escapeHtml(m)}</label>`;
+    mwrap.appendChild(div);
+  });
+
+  // sentiment
+  const sentWrap = document.getElementById('sentimentWrap'); sentWrap.innerHTML='';
+  ['Positive','Neutral','Negative'].forEach(s=>{
+    const checked = state.filters.sentiments.has(s) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(s)}" class="sent-checkbox" ${checked}/> ${s}</label>`;
+    sentWrap.appendChild(div);
+  });
+
+  // FY
+  const fyw = document.getElementById('fyWrap'); fyw.innerHTML='';
+  state.derived.fys.forEach(fy=>{
+    const checked = state.filters.fys.has(fy) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(fy)}" class="fy-checkbox" ${checked}/> ${escapeHtml(fy)}</label>`;
+    fyw.appendChild(div);
+  });
+
+  // quarters
+  const qw = document.getElementById('quarterWrap'); qw.innerHTML='';
+  state.derived.quarters.forEach(q=>{
+    const checked = state.filters.quarters.has(q) ? 'checked' : '';
+    const div = document.createElement('div');
+    div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(q)}" class="q-checkbox" ${checked}/> ${escapeHtml(q)}</label>`;
+    qw.appendChild(div);
+  });
+
+  // months using MONTH_ORDER
+  const mw = document.getElementById('monthWrap'); mw.innerHTML='';
+  MONTH_ORDER.forEach(m=>{
+    if(state.derived.months.includes(m)){
+      const checked = state.filters.months.has(m) ? 'checked' : '';
+      const div = document.createElement('div');
+      div.innerHTML = `<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-val="${escapeHtml(m)}" class="m-checkbox" ${checked}/> ${escapeHtml(m)}</label>`;
+      mw.appendChild(div);
+    }
+  });
+
+  attachFilterListeners();
+}
+
+/* Add listeners to filters */
+function attachFilterListeners(){
+  document.querySelectorAll('input[name="businessName"]').forEach(r=>{
+    r.addEventListener('change', e=>{
+      state.filters.businessName = e.target.value;
+      renderEverything();
+    });
+  });
+
+  document.querySelectorAll('.zone-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.zones.add(val); else state.filters.zones.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.state-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.states.add(val); else state.filters.states.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.city-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.cities.add(val); else state.filters.cities.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.store-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.stores.add(val); else state.filters.stores.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.mall-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.mallTypes.add(val); else state.filters.mallTypes.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.sent-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.sentiments.add(val); else state.filters.sentiments.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.fy-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.fys.add(val); else state.filters.fys.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.q-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.quarters.add(val); else state.filters.quarters.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  document.querySelectorAll('.m-checkbox').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const val = e.target.dataset.val;
+      if(e.target.checked) state.filters.months.add(val); else state.filters.months.delete(val);
+      renderFilterControls();
+    });
+  });
+
+  // search boxes
+  document.getElementById('stateSearch').addEventListener('input', e=>{
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#stateWrap > div').forEach(div=>{
+      div.style.display = div.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+  document.getElementById('citySearch').addEventListener('input', e=>{
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#cityWrap > div').forEach(div=>{
+      div.style.display = div.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+  document.getElementById('storeSearch').addEventListener('input', e=>{
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#storeWrap > div').forEach(div=>{
+      div.style.display = div.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+
+/* KPIs and insights */
+function renderKPIsAndInsights(){
+  const data = state.data;
+  const total = data.length;
+  const negatives = data.filter(d=>d.sentiment==='Negative').length;
+  const negPct = total ? ((negatives/total)*100).toFixed(1) + '%' : '0%';
+  document.getElementById('kpiTotal').textContent = total;
+  document.getElementById('kpiNegative').textContent = negPct;
+
+  const trend = (negatives/Math.max(total,1) > 0.3) ? '▼' : '▲';
+  const trendColor = (negatives/Math.max(total,1) > 0.3) ? 'var(--negative)' : 'var(--positive)';
+  document.getElementById('trendIcon').textContent = trend;
+  document.getElementById('trendIcon').style.color = trendColor;
+
+  // Best/Worst store by avg rating with minimum reviews threshold
+  const byStore = {};
+  state.rawData.forEach(r=>{
+    if(!byStore[r.storeCode]) byStore[r.storeCode] = {sum:0,count:0};
+    byStore[r.storeCode].sum += Number(r.rating||0);
+    byStore[r.storeCode].count++;
+  });
+  // compute averages only for stores that have >= MIN_REVIEWS_FOR_BEST_STORE
+  const storeAverages = Object.entries(byStore).map(([k,v])=>({store:k,avg:v.sum/v.count,count:v.count}))
+    .filter(s=> s.count >= MIN_REVIEWS_FOR_BEST_STORE)
+    .sort((a,b)=>b.avg-a.avg);
+
+  // If no store meets MIN_REVIEWS, fallback to stores with highest counts (to avoid showing N/A)
+  let bestText = '—';
+  let worstText = '—';
+  if(storeAverages.length){
+    bestText = storeAverages[0].store + ' (' + storeAverages[0].avg.toFixed(2) + ' — ' + storeAverages[0].count + ' reviews)';
+    worstText = storeAverages[storeAverages.length-1].store + ' (' + storeAverages[storeAverages.length-1].avg.toFixed(2) + ' — ' + storeAverages[storeAverages.length-1].count + ' reviews)';
+  } else {
+    // fallback: choose stores with most reviews and show average (even if below threshold)
+    const fallback = Object.entries(byStore).map(([k,v])=>({store:k,avg:v.sum/v.count,count:v.count})).sort((a,b)=>b.count-a.count);
+    if(fallback.length){
+      const candidateBest = fallback[0];
+      const candidateWorst = fallback[fallback.length-1];
+      bestText = `${candidateBest.store} (${candidateBest.avg.toFixed(2)} — ${candidateBest.count} reviews)`;
+      worstText = `${candidateWorst.store} (${candidateWorst.avg.toFixed(2)} — ${candidateWorst.count} reviews)`;
+    }
+  }
+  document.getElementById('kpiBest').textContent = bestText;
+  document.getElementById('kpiWorst').textContent = worstText;
+
+  // Strategic Insights cards
+  const grid = document.getElementById('insightsGrid'); grid.innerHTML='';
+  // AI insights removed per request; use deterministic strategic insights
+  const strategic = generateStrategicInsights(data);
+  strategic.forEach(s=>{
+    const el = document.createElement('div'); el.className='insight-card';
+    el.innerHTML = `<h4>${escapeHtml(s.headline)}</h4><p>${escapeHtml(s.description)}</p>`;
+    grid.appendChild(el);
+  });
+}
+
+function generateStrategicInsights(data){
+  const categories = {};
+  data.forEach(r=>{
+    const cat = classifyImprovementCategory(r.comment);
+    if(cat === 'Miscellaneous') return;
+    categories[cat] = (categories[cat]||0)+1;
+  });
+  const total = Object.values(categories).reduce((a,b)=>a+b,0) || 1;
+  const sortedCats = Object.entries(categories).map(([k,v])=>({k,v,percent:(v/total*100)})).sort((a,b)=>b.v-a.v);
+  const theme = sortedCats[0] ? sortedCats[0].k : 'Store Experience';
+  const themePct = sortedCats[0] ? Math.round(sortedCats[0].percent) : 0;
+
+  const zoneStats = {};
+  data.forEach(r=>{
+    if(!zoneStats[r.zone]) zoneStats[r.zone] = {sum:0,count:0,neg:0};
+    zoneStats[r.zone].sum += r.rating; zoneStats[r.zone].count++;
+    if(r.sentiment === 'Negative') zoneStats[r.zone].neg++;
+  });
+  const zoneArr = Object.entries(zoneStats).map(([z,v])=>({zone:z,avg:v.sum/v.count,negPct:v.count? (v.neg/v.count*100):0})).sort((a,b)=>b.negPct - a.negPct);
+  const topZone = zoneArr[0] || {zone:'N/A',avg:0,negPct:0};
+
+  const storeMap = {};
+  data.forEach(r=>{
+    if(!storeMap[r.storeCode]) storeMap[r.storeCode] = {sum:0,count:0,neg:0};
+    storeMap[r.storeCode].sum += r.rating; storeMap[r.storeCode].count++;
+    if(r.sentiment === 'Negative') storeMap[r.storeCode].neg++;
+  });
+  const underperformers = Object.entries(storeMap).map(([s,v])=>({store:s,avg:v.sum/v.count,negPct:v.count? v.neg/v.count*100:0})).filter(x=>x.avg<=4).sort((a,b)=>a.avg-b.avg).slice(0,5).map(x=>x.store);
+  const underperformingText = underperformers.length ? underperformers.join(', ') : 'N/A';
+
+  // positive momentum
+  function daysAgo(d,n){ const D = new Date(d); D.setDate(D.getDate()-n); return D; }
+  const today = new Date();
+  const last30 = data.filter(r=> new Date(r.commentDate) >= daysAgo(today,30));
+  const prev30 = data.filter(r=> new Date(r.commentDate) < daysAgo(today,30) && new Date(r.commentDate) >= daysAgo(today,60));
+  const posLast = last30.filter(r=>r.sentiment==='Positive').length;
+  const posPrev = prev30.filter(r=>r.sentiment==='Positive').length;
+  const posPctChange = posPrev ? Math.round(((posLast-posPrev)/posPrev)*100) : (posLast? 100: 0);
+
+  const cityMap = {};
+  data.forEach(r=> cityMap[r.city] = (cityMap[r.city]||0)+1);
+  const topCities = Object.entries(cityMap).map(([c,v])=>({c,v})).sort((a,b)=>b.v-a.v).slice(0,3).map(x=>x.c).join(', ') || 'N/A';
+
+  const best = Object.entries(storeMap).map(([s,v])=>({s,avg:v.sum/v.count})).sort((a,b)=>b.avg-a.avg)[0];
+  const bestText = best ? `${best.s} (${best.avg.toFixed(2)})` : 'N/A';
+
+  return [
+    {headline:'Top Driver Identified', description:`${theme} is the most mentioned theme — ${themePct}% of structured feedback references this area.`},
+    {headline:`${topZone.zone} Zone Sentiment Dip`, description:`Average rating in ${topZone.zone} is ${topZone.avg.toFixed(1)} with negative share ${Math.round(topZone.negPct)}%.`},
+    {headline:'Stores needing Urgent Attention', description:`Underperforming stores: ${underperformingText}`},
+    {headline:'Recent Momentum', description:`Positive reviews changed by +${posPctChange}% in the past 30 days.`},
+    {headline:`High-volume Cities`, description:`Top cities by review volume: ${topCities}.`},
+    {headline:'Top Performing Store', description:`Leading store: ${bestText}`},
+  ];
+}
+
+/* Drivers chart */
+function renderDriversChart(){
+  const data = state.data;
+  const categories = {};
+  data.forEach(r=>{
+    const cat = classifyImprovementCategory(r.comment);
+    if(cat==='Miscellaneous') return;
+    categories[cat] = (categories[cat]||0)+1;
+  });
+  const arr = Object.entries(categories).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
+  const total = arr.reduce((a,b)=>a+b.v,0) || 1;
+  let others=0;
+  const filtered = arr.filter(item=> {
+    if(item.v/total < 0.05){ others += item.v; return false; }
+    return true;
+  });
+  if(others) filtered.push({k:'Miscellaneous/Others', v:others});
+  filtered.sort((a,b)=>b.v-a.v);
+
+  // pills
+  const pillWrap = document.getElementById('driverPills'); pillWrap.innerHTML='';
+  filtered.forEach(item=>{
+    const pill = document.createElement('div'); pill.className='pill';
+    pill.textContent = `${item.k} (${item.v})`;
+    pill.addEventListener('click', ()=>{ state.filters.tempCategory = item.k; renderEverything(); });
+    pillWrap.appendChild(pill);
+  });
+
+  // svg horizontal bars
+  const chart = document.getElementById('driversChart'); chart.innerHTML='';
+  const width = chart.clientWidth || 700, height = Math.max(60, filtered.length*36);
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS,'svg');
+  svg.setAttribute('width','100%'); svg.setAttribute('height',height); svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+  const max = Math.max(...filtered.map(f=>f.v),1);
+  filtered.forEach((f,i)=>{
+    const barW = Math.round((f.v/max) * (width - 240));
+    const y = i*36 + 10;
+    const label = document.createElementNS(svgNS,'text'); label.setAttribute('x',10); label.setAttribute('y',y+15); label.setAttribute('font-size','12'); label.setAttribute('font-weight','700'); label.textContent = f.k;
+    svg.appendChild(label);
+
+    const rect = document.createElementNS(svgNS,'rect'); rect.setAttribute('x',220); rect.setAttribute('y',y+2); rect.setAttribute('width',barW); rect.setAttribute('height',20); rect.setAttribute('rx',6); rect.setAttribute('fill','#c7e9ff');
+    rect.style.cursor='pointer';
+    rect.addEventListener('click', ()=> { state.filters.tempCategory = f.k; renderEverything(); });
+    svg.appendChild(rect);
+
+    const valText = document.createElementNS(svgNS,'text'); valText.setAttribute('x',220 + barW + 8); valText.setAttribute('y', y+16); valText.setAttribute('font-size','12'); valText.setAttribute('font-weight','700'); valText.textContent = f.v;
+    svg.appendChild(valText);
+  });
+  chart.appendChild(svg);
+}
+
+/* Sentiment pie with outside labels */
+function renderSentimentPie(){
+  const data = state.data;
+  const counts = {Positive:0, Neutral:0, Negative:0};
+  data.forEach(d=> { if(d.sentiment in counts) counts[d.sentiment]++; else counts.Neutral++; });
+  const total = counts.Positive + counts.Neutral + counts.Negative || 1;
+  const pie = document.getElementById('pieChart'); pie.innerHTML='';
+  const size = 180; const svgNS = 'http://www.w3.org/2000/svg'; const cx=size/2, cy=size/2, r=size/2-8;
+  const svg = document.createElementNS(svgNS,'svg'); svg.setAttribute('width',size); svg.setAttribute('height',size); svg.setAttribute('viewBox',`0 0 ${size} ${size}`);
+  let start = -Math.PI/2;
+  Object.entries(counts).forEach(([k,v])=>{
+    const slice = (v/total)*(Math.PI*2);
+    const end = start + slice;
+    const x1 = cx + r*Math.cos(start), y1 = cy + r*Math.sin(start);
+    const x2 = cx + r*Math.cos(end), y2 = cy + r*Math.sin(end);
+    const large = slice > Math.PI ? 1 : 0;
+    const path = document.createElementNS(svgNS,'path');
+    const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+    path.setAttribute('d', d);
+    path.setAttribute('fill', SENTIMENT_COLORS[k]);
+    svg.appendChild(path);
+
+    // outside label
+    const mid = start + slice/2;
+    const lx = cx + (r+22) * Math.cos(mid);
+    const ly = cy + (r+22) * Math.sin(mid);
+    const txt = document.createElementNS(svgNS,'text');
+    txt.setAttribute('x', lx); txt.setAttribute('y', ly); txt.setAttribute('font-size','12');
+    txt.setAttribute('text-anchor', mid > Math.PI/2 && mid < 3*Math.PI/2 ? 'end' : 'start');
+    txt.textContent = k + ' ' + (v/total*100).toFixed(1) + '%';
+    svg.appendChild(txt);
+
+    start = end;
+  });
+  pie.appendChild(svg);
+
+  // legend
+  const legend = document.getElementById('pieLegend'); legend.innerHTML='';
+  Object.entries(counts).forEach(([k,v])=>{
+    const row = document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px'; row.style.marginBottom='6px';
+    const sw = document.createElement('div'); sw.style.width='12px'; sw.style.height='12px'; sw.style.borderRadius='4px'; sw.style.background=SENTIMENT_COLORS[k];
+    const label = document.createElement('div'); label.style.fontWeight='700'; label.textContent = `${k} — ${(v/total*100).toFixed(1)}% (${v})`;
+    row.appendChild(sw); row.appendChild(label);
+    legend.appendChild(row);
+  });
+}
+
+/* Word cloud */
+function renderWordCloud(){
+  const data = state.data;
+  const emotionCounts = {};
+  data.forEach(r=> detectEmotions(r.comment).forEach(e => emotionCounts[e] = (emotionCounts[e]||0)+1));
+  const wc = document.getElementById('wordCloud'); wc.innerHTML='';
+  const total = Object.values(emotionCounts).reduce((a,b)=>a+b,0) || 1;
+  Object.entries(emotionCounts).sort((a,b)=>b[1]-a[1]).forEach(([word,count])=>{
+    const el = document.createElement('div'); const size = 12 + Math.round((count/total)*28);
+    el.style.fontSize = size + 'px';
+    // color palette - brighter for frequent emotions
+    const color = count/total > 0.25 ? '#0ea5a1' : count/total > 0.15 ? '#60a5fa' : '#c084fc';
+    el.style.background = color;
+    el.style.padding = '6px 10px';
+    el.style.borderRadius = '6px';
+    el.style.color = '#fff';
+    el.textContent = word + (count ? ' ('+count+')' : '');
+    wc.appendChild(el);
+  });
+}
+
+/* Line chart APR→MAR (with points & hover) */
+function renderLineChart(){
+  const map = {}; MONTH_ORDER.forEach(m=> map[m] = {sum:0,count:0});
+  state.data.forEach(r=> { if(map[r.month]){ map[r.month].sum += sentimentScore(r.sentiment); map[r.month].count++; } });
+  const points = MONTH_ORDER.map(m=> map[m].count ? map[m].sum/map[m].count : 0);
+  const chart = document.getElementById('lineChart'); chart.innerHTML='';
+  const width = chart.clientWidth || 700, height = 220, padding = 40;
+  const svgNS = 'http://www.w3.org/2000/svg'; const svg = document.createElementNS(svgNS,'svg');
+  svg.setAttribute('width','100%'); svg.setAttribute('height',height); svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+  const yScale = v => padding + ( (1 - (v+1)/2) * (height - padding*2));
+  const xScale = i => padding + i * ((width - padding*2) / (MONTH_ORDER.length-1));
+  for(let i=0;i<=4;i++){ const y = padding + i*((height - padding*2)/4); const line = document.createElementNS(svgNS,'line'); line.setAttribute('x1',padding); line.setAttribute('x2',width-padding); line.setAttribute('y1',y); line.setAttribute('y2',y); line.setAttribute('stroke','rgba(2,6,23,0.04)'); svg.appendChild(line); }
+  MONTH_ORDER.slice(0,3).forEach((m,i)=>{ const tx = document.createElementNS(svgNS,'text'); tx.setAttribute('x', xScale(i)); tx.setAttribute('y', height - 8); tx.setAttribute('font-size','11'); tx.setAttribute('text-anchor','middle'); tx.textContent = m; svg.appendChild(tx); });
+  const pathD = points.map((p,i)=> `${i===0?'M':'L'} ${xScale(i)} ${yScale(p)}`).join(' ');
+  const path = document.createElementNS(svgNS,'path'); path.setAttribute('d', pathD); path.setAttribute('fill','none'); path.setAttribute('stroke','#0f172a'); path.setAttribute('stroke-width','2'); svg.appendChild(path);
+  points.forEach((p,i)=>{ const cx = xScale(i), cy = yScale(p); const circle = document.createElementNS(svgNS,'circle'); circle.setAttribute('cx',cx); circle.setAttribute('cy',cy); circle.setAttribute('r',4); circle.setAttribute('fill','#fff'); circle.setAttribute('stroke','#0f172a'); circle.setAttribute('stroke-width',2); circle.style.cursor='pointer';
+    circle.addEventListener('mouseenter', ()=>{ showTooltip(chart, `Value: ${p.toFixed(2)}`, cx, cy); });
+    circle.addEventListener('mouseleave', ()=>{ hideTooltip(chart); });
+    svg.appendChild(circle);
+    const label = document.createElementNS(svgNS,'text'); label.setAttribute('x', cx); label.setAttribute('y', cy - 8); label.setAttribute('font-size','11'); label.setAttribute('text-anchor','middle'); label.setAttribute('font-weight','700'); label.textContent = (p).toFixed(2); svg.appendChild(label); });
+  chart.appendChild(svg);
+}
+
+function showTooltip(container, text, x, y){
+  hideTooltip(container);
+  const t = document.createElement('div'); t.className='chart-tooltip'; t.style.position='absolute'; t.style.left = (x + container.getBoundingClientRect().left + 10) + 'px'; t.style.top = (y + container.getBoundingClientRect().top - 24) + 'px'; t.style.background='#111'; t.style.color='#fff'; t.style.padding='6px 8px'; t.style.borderRadius='6px'; t.style.zIndex=9999; t.textContent = text;
+  t.id = 'activeChartTooltip';
+  document.body.appendChild(t);
+}
+function hideTooltip(container){ const ex = document.getElementById('activeChartTooltip'); if(ex) ex.remove(); }
+
+/* Heatmap top 10 stores x categories */
+function renderHeatmap(){
+  const storeCat = {};
+  state.rawData.forEach(r=>{
+    const cat = classifyImprovementCategory(r.comment);
+    if(cat === 'Miscellaneous') return;
+    if(!storeCat[r.storeCode]) storeCat[r.storeCode] = {};
+    if(!storeCat[r.storeCode][cat]) storeCat[r.storeCode][cat] = {score:0,count:0};
+    storeCat[r.storeCode][cat].score += sentimentScore(r.sentiment);
+    storeCat[r.storeCode][cat].count++;
+  });
+
+  const storeCounts = {};
+  state.rawData.forEach(r=> storeCounts[r.storeCode] = (storeCounts[r.storeCode]||0)+1);
+  const topStores = Object.entries(storeCounts).map(([s,c])=>({s,c})).sort((a,b)=>b.c-a.c).slice(0,10).map(x=>x.s);
+  const categories = uniq([].concat(...Object.values(storeCat).map(s=>Object.keys(s))));
+
+  const table = document.getElementById('heatmapTable'); table.innerHTML='';
+  const thead = document.createElement('thead'); const trh = document.createElement('tr'); const th0 = document.createElement('th'); th0.textContent='Store / Category'; trh.appendChild(th0);
+  categories.forEach(cat=>{ const th = document.createElement('th'); th.textContent = cat; trh.appendChild(th); });
+  thead.appendChild(trh); table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  topStores.forEach(store=>{
+    const tr = document.createElement('tr');
+    const th = document.createElement('th'); th.textContent = store; th.style.cursor='pointer';
+    th.addEventListener('click', ()=> showStoreDrill(store));
+    tr.appendChild(th);
+    categories.forEach(cat=>{
+      const td = document.createElement('td');
+      const stat = storeCat[store] && storeCat[store][cat] ? storeCat[store][cat] : {score:0,count:0};
+      const avg = stat.count ? stat.score / stat.count : 0;
+      const display = stat.count ? (avg.toFixed(2) + ' (' + stat.count + ')') : '-';
+      td.textContent = display;
+      const bg = avg > 0 ? `rgba(16,185,129,${Math.min(0.9, Math.abs(avg))})` : avg < 0 ? `rgba(239,68,68,${Math.min(0.9, Math.abs(avg))})` : `rgba(245,158,11,0.18)`;
+      td.style.background = bg;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  const wrap = document.getElementById('heatmapWrap');
+  wrap.style.overflowX='auto';
+  wrap.style.overflowY='auto';
+}
+
+/* Sentiment by Zone */
+function renderZoneChart(){
+  const zoneMap = {};
+  state.data.forEach(r=>{
+    if(!zoneMap[r.zone]) zoneMap[r.zone] = {sum:0,count:0};
+    zoneMap[r.zone].sum += sentimentScore(r.sentiment);
+    zoneMap[r.zone].count++;
+  });
+  const arr = Object.entries(zoneMap).map(([z,v])=>({z,avg: v.count ? v.sum/v.count : 0, count:v.count})).sort((a,b)=>b.avg-a.avg);
+  const chart = document.getElementById('zoneChart'); chart.innerHTML='';
+  const width = chart.clientWidth || 380; const height = 220; const padding = 30; const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS,'svg'); svg.setAttribute('width','100%'); svg.setAttribute('height',height); svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+  arr.forEach((a,i)=>{ const bw = (width - padding*2) / Math.max(1,arr.length); const barH = ((a.avg + 1)/2) * (height - padding*2); const x = padding + i*bw + 6; const y = height - padding - barH; const rect = document.createElementNS(svgNS,'rect'); rect.setAttribute('x',x); rect.setAttribute('y',y); rect.setAttribute('width',Math.max(10,bw-12)); rect.setAttribute('height',barH); rect.setAttribute('rx',6); rect.setAttribute('fill', a.avg > 0 ? SENTIMENT_COLORS.Positive : (a.avg < 0 ? SENTIMENT_COLORS.Negative : SENTIMENT_COLORS.Neutral)); svg.appendChild(rect); const label = document.createElementNS(svgNS,'text'); label.setAttribute('x', x + (Math.max(10,bw-12))/2); label.setAttribute('y', height - 8); label.setAttribute('font-size','11'); label.setAttribute('text-anchor','middle'); label.textContent = a.z; svg.appendChild(label); const val = document.createElementNS(svgNS,'text'); val.setAttribute('x', x + (Math.max(10,bw-12))/2); val.setAttribute('y', y - 6); val.setAttribute('font-size','11'); val.setAttribute('text-anchor','middle'); val.setAttribute('font-weight','700'); val.textContent = a.avg.toFixed(2); svg.appendChild(val); });
+  chart.appendChild(svg);
+}
+
+/* Comments */
+function renderComments(){
+  const data = state.data.map(r=> ({...r, parsedDate: new Date(r.commentDate)})).sort((a,b)=> b.parsedDate - a.parsedDate);
+  data.forEach(r=>{
+    if(looksLikeDate(r.comment) && r.__raw && r.__raw.responseType && r.__raw.responseType.length>3) r.comment = r.__raw.responseType;
+  });
+
+  const positives = data.filter(r=> r.sentiment==='Positive').slice(0,15);
+  const negatives = data.filter(r=> r.sentiment==='Negative').slice(0,15);
+
+  const posWrap = document.getElementById('positiveComments'); posWrap.innerHTML='';
+  positives.forEach(r=>{
+    const card = document.createElement('div'); card.className='comment-card';
+    card.innerHTML = `<div style="font-size:14px"><span style="margin-right:8px">😊</span><b>${escapeHtml(r.comment)}</b></div><div class="comment-meta">Store: ${escapeHtml(r.storeCode)} | Date: ${formatDateYMD(r.commentDate)}</div>`;
+    posWrap.appendChild(card);
+  });
+
+  const negWrap = document.getElementById('negativeComments'); negWrap.innerHTML='';
+  negatives.forEach(r=>{
+    const card = document.createElement('div'); card.className='comment-card';
+    card.innerHTML = `<div style="font-size:14px"><span style="margin-right:8px">😠</span><b>${escapeHtml(r.comment)}</b></div><div class="comment-meta">Store: ${escapeHtml(r.storeCode)} | Date: ${formatDateYMD(r.commentDate)}</div>`;
+    negWrap.appendChild(card);
+  });
+  const blue = getComputedStyle(document.documentElement).getPropertyValue('--blue').trim();
+  document.querySelectorAll('.comment-column h3').forEach(h=> h.style.color = blue);
+}
+
+/* Render all visualizations */
+function renderEverything(){
+  applyFilters();
+  renderKPIsAndInsights();
+  renderDriversChart();
+  renderSentimentPie();
+  renderWordCloud();
+  renderLineChart();
+  renderHeatmap();
+  renderZoneChart();
+  renderComments();
+}
+
+/* =========================
+   Utility features: CSV download, Theme, Drill-down
+   ========================= */
+
+function downloadFilteredCSV(){
+  // convert state.data to CSV
+  if(!state.data.length){ alert('No data to download.'); return; }
+  const cols = ['storeCode','businessName','zone','state','city','mallType','fy','quarter','month','rating','sentiment','commentDate','comment'];
+  const header = cols.join(',');
+  const lines = state.data.map(r => cols.map(c => {
+    const v = (r[c] === undefined || r[c] === null) ? '' : String(r[c]).replace(/"/g,'""');
+    return `"${v}"`;
+  }).join(','));
+  const csv = [header].concat(lines).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'voc_filtered.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function setTheme(themeClass){
+  const root = document.getElementById('appRoot');
+  root.classList.remove('theme-dark','theme-ocean','theme-warm');
+  if(themeClass) root.classList.add(themeClass);
+}
+
+/* Drill-down: show store modal */
+function showStoreDrill(storeCode){
+  const modal = document.getElementById('modalBackdrop');
+  const body = document.getElementById('modalBody');
+  const title = document.getElementById('modalTitle');
+  title.textContent = `Store: ${storeCode}`;
+  const rows = state.rawData.filter(r=> r.storeCode === storeCode);
+  if(rows.length === 0){
+    body.innerHTML = '<p>No data for this store.</p>';
+  } else {
+    const avgRating = (rows.reduce((s,r)=>s + Number(r.rating||0),0) / rows.length).toFixed(2);
+    const sentiments = {Positive:0,Neutral:0,Negative:0};
+    rows.forEach(r=> sentiments[r.sentiment] = (sentiments[r.sentiment]||0) + 1);
+    const topDrivers = {};
+    rows.forEach(r=> { const cat = classifyImprovementCategory(r.comment); topDrivers[cat] = (topDrivers[cat]||0)+1; });
+    const driverList = Object.entries(topDrivers).sort((a,b)=>b[1]-a[1]).slice(0,5).map(x=>`${x[0]} (${x[1]})`).join(', ') || 'N/A';
+    // top positive / negative comments
+    const pos = rows.filter(r=> r.sentiment==='Positive').slice(0,5).map(r=>`• ${escapeHtml(r.comment || r.__raw.responseType || '')}`);
+    const neg = rows.filter(r=> r.sentiment==='Negative').slice(0,5).map(r=>`• ${escapeHtml(r.comment || r.__raw.responseType || '')}`);
+    // summary
+    const aiSummary = generateStoreSummary(storeCode, rows);
+
+    body.innerHTML = `
+      <div style="display:flex;gap:12px">
+        <div style="flex:1">
+          <p><b>Average rating:</b> ${avgRating} (${rows.length} reviews)</p>
+          <p><b>Sentiment breakdown:</b> Positive ${sentiments.Positive || 0}, Neutral ${sentiments.Neutral || 0}, Negative ${sentiments.Negative || 0}</p>
+          <p><b>Top drivers:</b> ${driverList}</p>
+          <p style="margin-top:10px"><b>Summary:</b></p>
+          <div style="background:#f7fafc;padding:10px;border-radius:6px">${escapeHtml(aiSummary)}</div>
+        </div>
+        <div style="width:320px">
+          <p style="margin-bottom:6px"><b>Top Positive</b></p>
+          <div style="background:#fff;padding:8px;border-radius:6px;margin-bottom:8px">${pos.join('<br>') || 'N/A'}</div>
+          <p style="margin-bottom:6px"><b>Top Negative</b></p>
+          <div style="background:#fff;padding:8px;border-radius:6px">${neg.join('<br>') || 'N/A'}</div>
+        </div>
+      </div>
+      <div style="margin-top:12px"><button id="modalDownload" class="btn">Download store data CSV</button> <button id="modalCopy" class="btn">Copy summary</button></div>
+    `;
+    document.getElementById('modalDownload').addEventListener('click', ()=> downloadStoreCSV(storeCode));
+    document.getElementById('modalCopy').addEventListener('click', ()=>{
+      navigator.clipboard.writeText(aiSummary).then(()=> alert('Summary copied to clipboard'));
+    });
+  }
+  modal.style.display='flex';
+}
+
+function closeModal(){ document.getElementById('modalBackdrop').style.display='none'; }
+
+function downloadStoreCSV(store){
+  const rows = state.rawData.filter(r=> r.storeCode === store);
+  if(!rows.length) return alert('No data for store.');
+  const cols = ['storeCode','businessName','zone','state','city','mallType','fy','quarter','month','rating','sentiment','commentDate','comment'];
+  const header = cols.join(',');
+  const lines = rows.map(r => cols.map(c => {
+    const v = (r[c] === undefined || r[c] === null) ? '' : String(r[c]).replace(/"/g,'""');
+    return `"${v}"`;
+  }).join(','));
+  const csv = [header].concat(lines).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `store_${store}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* Summary */
+function generateStoreSummary(storeCode, rows){
+  const n = rows.length;
+  if(n === 0) return 'No reviews available for this store.';
+  const avg = (rows.reduce((s,r)=>s + Number(r.rating||0),0) / n).toFixed(2);
+  const pos = rows.filter(r=> r.sentiment==='Positive').length;
+  const neg = rows.filter(r=> r.sentiment==='Negative').length;
+  const neut = rows.filter(r=> r.sentiment==='Neutral').length;
+  const cats = {};
+  rows.forEach(r=> { const c = classifyImprovementCategory(r.comment); cats[c] = (cats[c]||0)+1; });
+  const topCats = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,3).map(x=>`${x[0]} (${x[1]})`).join(', ');
+  const sampleNeg = rows.find(r=> r.sentiment==='Negative' && r.comment && r.comment.length>20);
+  const samplePos = rows.find(r=> r.sentiment==='Positive' && r.comment && r.comment.length>20);
+  let summary = `Store ${storeCode} has ${n} reviews with average rating ${avg}. Sentiment split: Positive ${pos}, Neutral ${neut}, Negative ${neg}. Key themes: ${topCats || 'N/A'}.`;
+  if(sampleNeg) summary += ` Example concern: "${sampleNeg.comment.substring(0,160)}${sampleNeg.comment.length>160?'...':''}"`;
+  else if(samplePos) summary += ` Example compliment: "${samplePos.comment.substring(0,160)}${samplePos.comment.length>160?'...':''}"`;
+  return summary;
+}
+
+/* =========================
+   UI wiring & init
+   ========================= */
+document.getElementById('hideFilterBtn').addEventListener('click', ()=>{
+  document.getElementById('filterPanel').classList.add('hidden');
+  document.getElementById('showFilterBtn').style.display='inline-block';
+  document.getElementById('mainContent').style.marginLeft = '0';
+});
+document.getElementById('showFilterBtn').addEventListener('click', ()=>{
+  document.getElementById('filterPanel').classList.remove('hidden');
+  document.getElementById('showFilterBtn').style.display='none';
+  document.getElementById('mainContent').style.marginLeft = '0';
+});
+document.getElementById('resetFilters').addEventListener('click', ()=>{
+  state.filters = {
+    businessName: null,
+    zones: new Set(),
+    states: new Set(),
+    cities: new Set(),
+    stores: new Set(),
+    mallTypes: new Set(),
+    sentiments: new Set(),
+    fys: new Set(),
+    quarters: new Set(),
+    months: new Set()
+  };
+  renderFilterControls();
+  renderEverything();
+});
+document.getElementById('applyFilters').addEventListener('click', ()=>{ renderEverything(); });
+document.getElementById('downloadCsvBtn').addEventListener('click', ()=> downloadFilteredCSV());
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('modalBackdrop').addEventListener('click', (e)=> { if(e.target.id === 'modalBackdrop') closeModal(); });
+
+document.getElementById('themeSelect').addEventListener('change', (e)=> setTheme(e.target.value));
+
+/* =========================
+  Initialization sequence
+   1) load data
+   2) normalize & set default FY if available
+   3) render controls
+   4) render everything
+   ========================= */
+
+(async function init(){
+  const raw = await loadReviewData();
+  state.rawData = raw.map(r=> normalizeRecord(r));
+  // ensure commentDate formatting fallback if missing
+  state.rawData.forEach(r=>{
+    if(!r.commentDate || r.commentDate === '') {
+      // try to extract date from comment or raw fields
+      const raw = r.__raw || {};
+      const candidate = raw['Comment Date'] || raw['commentDate'] || raw['Comment Date_NEW'] || raw.comment || '';
+      if(candidate && looksLikeDate(candidate)) r.commentDate = candidate;
+    }
+  });
+  refreshDerivedLists(state.rawData);
+  const defaultFY = state.derived.fys.includes('FY2025-2026') ? 'FY2025-2026' : (state.derived.fys[0] || null);
+  if(defaultFY) state.filters.fys.add(defaultFY);
+  if(state.derived.businessNames.length) state.filters.businessName = state.derived.businessNames[0];
+
+  renderFilterControls();
+  renderEverything();
+})();
+</script>
+</body>
+</html>

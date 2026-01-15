@@ -1,0 +1,75 @@
+📋 VOC DASHBOARD - DEPLOYMENT CHECKLIST
+==========================================
+
+✅ STEP 1: Verify All Files Present
+  □ Original Code.html (dashboard UI)
+  □ latest_t_mapped.csv (data file)
+  □ app.py (Flask server)
+  □ requirements.txt (dependencies)
+  □ Procfile (Render config)
+  □ README.md (documentation)
+  □ DEPLOYMENT.md (instructions)
+  □ .gitignore (git ignore rules)
+
+✅ STEP 2: Initialize Git (if needed)
+  □ Open VS Code Terminal: Ctrl + `
+  □ Navigate: cd "c:\Users\Harish.B\Desktop\VOC DASHBOARD"
+  □ Run: git init
+  □ Run: git add .
+  □ Run: git commit -m "Initial commit"
+
+✅ STEP 3: Create GitHub Repository
+  □ Go to https://github.com/new
+  □ Create repo name: voc-dashboard
+  □ Copy the repository URL
+  □ In VS Code terminal, run:
+    git remote add origin [COPY_YOUR_URL_HERE]
+    git push -u origin main
+
+✅ STEP 4: Deploy to Render
+  □ Go to https://render.com
+  □ Sign up with GitHub account
+  □ Click "New" → "Web Service"
+  □ Select your voc-dashboard repository
+  □ Build Command: pip install -r requirements.txt
+  □ Start Command: gunicorn app:app
+  □ Click "Create Web Service"
+
+✅ STEP 5: Access Your Dashboard
+  □ Wait for deployment (5-10 minutes)
+  □ Your dashboard URL: https://voc-dashboard.onrender.com
+  □ Share with team members!
+
+==========================================
+
+❓ NEED HELP?
+  
+  1. Git not installed? 
+     → Download from: https://git-scm.com/download/win
+  
+  2. GitHub account needed?
+     → Sign up free: https://github.com
+  
+  3. Render account needed?
+     → Sign up free: https://render.com
+  
+  4. Dashboard not loading?
+     → Check Render logs for errors
+     → Ensure latest_t_mapped.csv is in repo
+  
+  5. CSV data not showing?
+     → Verify file is committed to GitHub
+     → Check app.py file path
+
+==========================================
+
+🚀 READY TO GO!
+
+Your dashboard will be:
+  ✓ Live online
+  ✓ Accessible to anyone
+  ✓ Auto-updating when you push to GitHub
+  ✓ No local server needed
+  ✓ Free to host
+
+LAUNCH URL: https://voc-dashboard.onrender.com
