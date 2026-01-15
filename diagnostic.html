@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOC Dashboard - Loading...</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .status {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        h1 {
+            color: #333;
+        }
+        .loading {
+            color: #666;
+            font-size: 16px;
+        }
+        .error {
+            color: #d32f2f;
+            background: #ffebee;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .success {
+            color: #388e3c;
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VOC Dashboard - Diagnostic Mode</h1>
+        
+        <div class="status">
+            <h2>System Status</h2>
+            <div id="status-content" class="loading">Checking dashboard status...</div>
+        </div>
+        
+        <div class="status">
+            <h2>Data Status</h2>
+            <div id="data-status" class="loading">Loading data...</div>
+        </div>
+        
+        <div class="status">
+            <h2>Raw Data Preview</h2>
+            <pre id="data-preview" style="background: #f5f5f5; padding: 10px; overflow-x: auto;"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Check system status
+        async function checkStatus() {
+            try {
+                // Check if app is running
+                const healthCheck = await fetch('/health');
+                const healthData = await healthCheck.json();
+                document.getElementById('status-content').innerHTML = 
+                    '<div class="success">✓ Dashboard is running<br>' +
+                    'Status: ' + healthData.status + '<br>' +
+                    'Message: ' + healthData.message + '</div>';
+            } catch (error) {
+                document.getElementById('status-content').innerHTML = 
+                    '<div class="error">✗ Error: ' + error.message + '</div>';
+            }
+        }
+
+        // Load and display data
+        async function loadData() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+                
+                if (Array.isArray(data)) {
+                    if (data.length > 0) {
+                        document.getElementById('data-status').innerHTML = 
+                            '<div class="success">✓ Data loaded successfully<br>' +
+                            'Rows: ' + data.length + '<br>' +
+                            'Columns: ' + Object.keys(data[0]).length + '</div>';
+                        
+                        // Show first few rows
+                        const preview = data.slice(0, 3);
+                        document.getElementById('data-preview').textContent = 
+                            JSON.stringify(preview, null, 2);
+                    } else {
+                        document.getElementById('data-status').innerHTML = 
+                            '<div class="error">⚠ No data found in CSV file</div>';
+                        document.getElementById('data-preview').textContent = 
+                            'CSV file exists but contains no rows.';
+                    }
+                } else {
+                    document.getElementById('data-status').innerHTML = 
+                        '<div class="error">✗ Invalid data format</div>';
+                    document.getElementById('data-preview').textContent = 
+                        JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                document.getElementById('data-status').innerHTML = 
+                    '<div class="error">✗ Error loading data: ' + error.message + '</div>';
+                document.getElementById('data-preview').textContent = 
+                    'Error: ' + error.message;
+            }
+        }
+
+        // Run checks when page loads
+        window.addEventListener('load', function() {
+            checkStatus();
+            setTimeout(loadData, 500);
+        });
+    </script>
+</body>
+</html>
