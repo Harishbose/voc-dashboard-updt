@@ -11,23 +11,23 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 def index():
     """Serve the main dashboard"""
     try:
-        # Try index.html first (modern React dashboard)
-        with open('index.html', 'r', encoding='utf-8') as f:
+        # Load Original Code.html (CX Customer Dashboard)
+        with open('Original Code.html', 'r', encoding='utf-8') as f:
             html_content = f.read()
-            if html_content and len(html_content) > 1000:
-                print(f"✓ Loaded index.html ({len(html_content)} bytes)")
+            if html_content and len(html_content) > 5000:
+                print(f"✓ Loaded Original Code.html ({len(html_content)} bytes)")
                 return html_content
             else:
-                print("⚠ index.html is too small or empty")
-                raise Exception("index.html appears to be empty")
+                print("⚠ Original Code.html is too small or empty")
+                raise Exception("HTML file appears to be empty")
     except Exception as e:
-        print(f"Error loading index.html: {e}")
-        print("Trying Original Code.html...")
+        print(f"Error loading Original Code.html: {e}")
+        print("Trying index.html as fallback...")
         try:
-            with open('Original Code.html', 'r', encoding='utf-8') as f:
+            with open('index.html', 'r', encoding='utf-8') as f:
                 html_content = f.read()
                 if html_content and len(html_content) > 1000:
-                    print(f"✓ Loaded Original Code.html ({len(html_content)} bytes)")
+                    print(f"✓ Loaded index.html ({len(html_content)} bytes)")
                     return html_content
         except:
             pass
