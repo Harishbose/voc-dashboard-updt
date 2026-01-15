@@ -8,13 +8,22 @@ app = Flask(__name__, static_folder='static', template_folder='.')
 # Load CSV data
 def load_data():
     try:
-        csv_file = 'latest_t_mapped.csv'
-        if os.path.exists(csv_file):
-            df = pd.read_csv(csv_file)
-            return df.to_json(orient='records')
+        # Try multiple possible CSV file names
+        csv_files = ['latest_t_mapped_clean.csv', 'latest_t_mapped.csv', 'latest_t.csv']
+        
+        for csv_file in csv_files:
+            if os.path.exists(csv_file):
+                print(f"Loading data from {csv_file}")
+                df = pd.read_csv(csv_file)
+                print(f"Loaded {len(df)} rows from {csv_file}")
+                return df.to_json(orient='records')
+        
+        print(f"Warning: No CSV file found. Available files: {os.listdir('.')}")
         return json.dumps([])
     except Exception as e:
         print(f"Error loading data: {e}")
+        import traceback
+        traceback.print_exc()
         return json.dumps([])
 
 @app.route('/')
